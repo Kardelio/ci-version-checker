@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import requests
+import argparse
 import subprocess
 import itertools
 import json
@@ -16,9 +17,10 @@ black="\033[30;107m"
 reset="\033[0m"
 
 class Entry:
-    def __init__(self, file, value):
+    def __init__(self, file, value, lineNo):
         self.file = file
         self.value = value
+        self.lineNo = int(lineNo)
         splitedValue = value.split("@")
         self.currentVersion = splitedValue[1].strip()
         self.justVersionNumber = re.sub(r'[a-zA-Z]',"",splitedValue[1].strip())
@@ -26,6 +28,9 @@ class Entry:
         self.versionBits=len(self.splitVers)
         self.owner = splitedValue[0].split("/")[0].strip()
         self.repo = splitedValue[0].split("/")[1].strip()
+
+def getNeededVersionBits(oldVersion, newerVersionFull):
+    return newerVersionFull[:len(oldVersion)]
 
 def needToUpdate(one, two):
     cleanedValue = re.sub(r'[a-zA-Z]',"",one.strip())
@@ -47,6 +52,15 @@ def needToUpdate(one, two):
                 break
     return currentResult
 
+parser = argparse.ArgumentParser(
+        prog='Github Actions Action Version Checker',
+        description='Check the versions of the actions used in your .github/ dir',
+        epilog='')
+
+parser.add_argument("--replace", action="store_true", help="Add this flag to allow the script to automatically edit the file for you") 
+
+args = parser.parse_args()
+
 if(os.path.exists(".github") == True):
     USER=os.environ["GITHUB_USERNAME"]
     KEY=os.environ["GITHUB_API_KEY"]
@@ -58,15 +72,15 @@ if(os.path.exists(".github") == True):
             "Authorization": f"Basic {b64Key}"
             }
 
-
     res = subprocess.run(['/usr/bin/grep','-nr','uses','.github'], capture_output=True, text=True)
     lines=res.stdout.splitlines()
     out=[]
 
     for i in lines:
         file=i.split(":")[0]
+        lineNo=i.split(":")[1].strip()
         value=i.split("uses:")[1]
-        out.append(Entry(file.replace("\"","").strip(),value.replace("\"","").strip()))
+        out.append(Entry(file.replace("\"","").strip(),value.replace("\"","").strip(),lineNo))
 
     for j in out:
         url=f"https://api.github.com/repos/{j.owner}/{j.repo}/releases"
@@ -74,15 +88,15 @@ if(os.path.exists(".github") == True):
         newerVersion=response.json()[0]["name"]
         update=needToUpdate(j.currentVersion,newerVersion)
         if update == True:
-            print(f"Action {blue}{j.value}{reset} in  file: {yell}{j.file}{reset} can be updated to {black}{newerVersion}{reset}")
+            shortVersion=getNeededVersionBits(j.currentVersion, newerVersion)
+            print(f"Action {blue}{j.value}{reset} in  file: {yell}{j.file}{reset} (@ line {j.lineNo}) can be updated to {black}{newerVersion} ({shortVersion}){reset}")
+            if args.replace == True:
+                fileToEdit = open(j.file, 'r') 
+                fileLines = fileToEdit.readlines() 
+                fileLines[j.lineNo - 1] = re.sub(r'@[\.a-zA-Z0-9]*',f"@{shortVersion}",fileLines[j.lineNo - 1])
+                with open(j.file, 'w') as editting:
+                    editting.writelines( fileLines )
+
 else:
     print("No .github folder exists")
     sys.exit(1)
-
-
-#OS repo of steps
-#git@github.com:bitrise-io/bitrise-steplib.git
-#curl -H 'Authorization: Basic ______=='   https://api.github.com/repos/bitrise-io/bitrise-steplib/contents/steps
-#/contents/ steps curl GET - With API key obvz
-# Bitrise would be
-# - [a-zA-Z-]*\@[0-9\.]*:

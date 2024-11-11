@@ -63,10 +63,10 @@ def cleanEntry(line, num, originalLine):
 
 parser = argparse.ArgumentParser(
         prog='Bitrise Step Version Checker',
-        description='',
+        description='Check the versions of the steps used in your bitrise.yml file',
         epilog='')
 
-parser.add_argument("--replace", action="store_true", help="increase output verbosity") 
+parser.add_argument("--replace", action="store_true", help="Add this flag to allow the script to automatically edit the file for you") 
 
 args = parser.parse_args()
 
