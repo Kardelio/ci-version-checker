@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import requests
+import argparse
 import subprocess
 import itertools
 import json
@@ -17,15 +18,19 @@ black="\033[30;107m"
 reset="\033[0m"
 
 class StepEntry:
-    def __init__(self, name, version, lineNo):
+    def __init__(self, name, version, lineNo, originalLine):
         self.name = name
         self.version = version
         self.lineNo = lineNo
+        self.originalLine = originalLine
 
 def sortVersions(cleanedSemVers):
     versions = cleanedSemVers
     versions.sort(key=packaging.version.Version)
     return versions
+
+def getNeededVersionBits(oldVersion, newerVersionFull):
+    return newerVersionFull[:len(oldVersion)]
 
 def needToUpdate(one, two):
     cleanedValue = re.sub(r'[a-zA-Z]',"",one.strip())
@@ -47,14 +52,23 @@ def needToUpdate(one, two):
                 break
     return currentResult
 
-def cleanEntry(line, num):
+def cleanEntry(line, num, originalLine):
     cleanA = line.strip()
     cleanB = cleanA.split(" ")
     cleanC = cleanB[1].replace(":","")
     cleanD = cleanC.split("@")
     name = cleanD[0]
     ver = cleanD[1]
-    return StepEntry(name, ver, num)
+    return StepEntry(name, ver, num, originalLine)
+
+parser = argparse.ArgumentParser(
+        prog='Bitrise Step Version Checker',
+        description='',
+        epilog='')
+
+parser.add_argument("--replace", action="store_true", help="increase output verbosity") 
+
+args = parser.parse_args()
 
 if(os.path.isfile("bitrise.yml") == True):
     USER=os.environ["GITHUB_USERNAME"]
@@ -69,12 +83,13 @@ if(os.path.isfile("bitrise.yml") == True):
 
     txtfile = open('bitrise.yml', 'r') 
     glines = txtfile.readlines() 
+    newLines=glines
 
     out = []
     for idx, line in enumerate(glines):
         lineNumber = idx + 1
         if re.match(r'.* - [a-zA-Z-]*\@[0-9\.]*:.*', line):
-            se = cleanEntry(line.replace("\n",""),lineNumber)
+            se = cleanEntry(line.replace("\n",""),lineNumber, line)
             out.append(se)
 
     for j in out:
@@ -89,8 +104,14 @@ if(os.path.isfile("bitrise.yml") == True):
         print(f"{faded}{j.name} => [{j.version}] (line: {j.lineNo}) versus {newerVersion}{reset}")
         update=needToUpdate(j.version,newerVersion)
         if update == True:
-            print(f"Step {blue}{j.name}{reset} can be updated to {black}{newerVersion}{reset} -> {yell}on line {j.lineNo}{reset}")
+            shortVersion=getNeededVersionBits(j.version,newerVersion)
+            print(f"Step {blue}{j.name}{reset} can be updated to {black}{newerVersion} - [{shortVersion}]{reset} -> {yell}on line {j.lineNo}{reset}")
+            if args.replace == True:
+                newLines[j.lineNo - 1] = re.sub(r'@.*:',f"@{shortVersion}:",newLines[j.lineNo - 1])
 
+    if args.replace == True:
+        with open('bitrise.yml', 'w') as file:
+                file.writelines( newLines )
 else:
     print("No bitrise.yml file exists!")
     sys.exit(1)
