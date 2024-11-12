@@ -5,6 +5,7 @@
 Install the following:
 
 * pip3 install requests --break-system-packages
+* pip3 install packaging --break-system-packages
 
 Env Vars must be set for Github API
 These are below and are your github username and an API key for the API (format: ghp_XXXXX)
@@ -15,6 +16,16 @@ These are below and are your github username and an API key for the API (format:
 ```
 
 ## How to run
+
+### Common
+
+Both commands have an auto edit / replace feature that will edit your code with the new versions
+
+Simply add the `--replace` flag to the command, like so:
+
+```
+bitrise_checker.py --replace
+```
 
 ### Bitrise
 
